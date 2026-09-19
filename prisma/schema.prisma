@@ -1,0 +1,33 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+model WebhookEvent {
+  id          String    @id @default(uuid())
+  eventId     String    @unique              // chave de idempotência (header do provedor)
+  source      String                          // origem: "stripe", "github", etc.
+  eventType   String?                         // tipo do evento (opcional)
+  payload     Json                            // corpo bruto recebido
+  signature   String?                         // assinatura HMAC recebida (auditoria)
+  status      String    @default("received")  // received | duplicate
+  receivedAt  DateTime  @default(now())
+  processedAt DateTime?                       // null = ainda não processado
+
+  @@index([source, eventType])
+  @@map("webhook_events")
+}
