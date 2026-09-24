@@ -49,11 +49,20 @@ export async function registrarWebhook(dados: CreateWebhookEventInput): Promise<
     const resultado = await registrarEvento(dados)
     if (resultado === 'criado') {
         const channel = await getChannel();
-        channel.sendToQueue('webhook_events', Buffer.from(JSON.stringify(dados)), {
-            persistent: true,
-            contentType: 'application/json',
-            messageId: dados.eventId,
-        });
+
+        const EVENT_ROUTING_MAP: Record<string, string> = {
+            'usuario.criado': 'evento.A',
+            'usuario.atualizado': 'evento.B',
+        };
+
+        const routingKey = EVENT_ROUTING_MAP[dados.eventType ?? ''];
+        if (!routingKey) {
+            throw new Error(`Tipo de evento não suportado: ${dados.eventType}`);
+        }
+
+        channel.publish('Exchange_AB', routingKey, Buffer.from(JSON.stringify(dados)), {
+            persistent: true, // Garante que a mensagem seja salva em disco
+        })
     }
 
     return 'criado';

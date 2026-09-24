@@ -49,8 +49,9 @@ export async function webhook(req: Request, res: Response): Promise<Response> {
     try {
         const assinatura = req.headers['x-signature'];
         const eventId = req.headers['x-event-id'];
+        const eventType = req.headers['x-event-type']
 
-        if (typeof assinatura !== 'string' || typeof eventId !== 'string') {
+        if (typeof assinatura !== 'string' || typeof eventId !== 'string' || typeof eventType !== 'string') {
             return res.status(400).json({ erro: "Headers x-signature e x-event-id são obrigatórios" });
         }
 
@@ -66,7 +67,8 @@ export async function webhook(req: Request, res: Response): Promise<Response> {
             eventId,
             source: 'generic',
             payload: req.body,
-            signature: assinatura
+            signature: assinatura,
+            eventType: eventType
         });
 
         if (resultado === 'duplicado') {
