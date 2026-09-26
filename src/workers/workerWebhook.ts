@@ -11,9 +11,31 @@ async function startWorker() {
         await channel.consume('webhook_events_A', async (msg) => {
             if (!msg) return;
             try {
-                const { eventId } = JSON.parse(msg.content.toString());
+                let eventId: string | undefined;
+                try {
+                    eventId = JSON.parse(msg.content.toString())?.eventId;
+                } catch { /* JSON inválido */ }
+
+                if (!eventId) {
+                    channel.nack(msg, false, false); // mesmo caminho do catch externo: DLX entrega na DLQ
+                    console.error('[Worker Webhook] Mensagem malformada (sem eventId) — DLQ sem retry.');
+                    return;
+                }
                 const tentativas = Number(msg.properties.headers?.['tentativas'] ?? 0);//esse header nasce no worker e não na fila ou exchange.
                 try {
+                    const evento = await prisma.webhookEvent.findUnique({ where: { eventId } });
+
+                    if (!evento) {
+                        channel.nack(msg, false, false); // registro inexistente também é erro permanente
+                        console.error(`[Worker Webhook] Evento ${eventId} não existe no banco — DLQ sem retry.`);
+                        return;
+                    }
+
+                    if (evento.status === 'processed') {
+                        channel.ack(msg);
+                        console.log(`[Worker Webhook] Evento ${eventId} já processado — duplicata descartada.`);
+                        return;
+                    }
                     // processar o evento (buscar no banco, aplicar regra de negócio)
                     // e depois: marcar como processado
                     await prisma.webhookEvent.update({
@@ -27,14 +49,15 @@ async function startWorker() {
                     console.error('[Worker Webhook] Erro ao processar mensagem:', error);
 
                     if (tentativas + 1 >= 3) {
-                        channel.nack(msg); // encerra o ciclo e envia a DLQ
+
                         await prisma.webhookEvent.update({
                             where: { eventId },
                             data: { status: 'failed' },
                         });
-                        channel.sendToQueue('webhook_events_DLQ', msg.content, {
-                            persistent: true,
-                        });
+                        // channel.sendToQueue('webhook_events_DLQ', msg.content, {
+                        //     persistent: true,
+                        // });
+                        channel.nack(msg, false, false); // encerra o ciclo e envia a DLQ
                         console.log(`[Worker Webhook] Tentativas esgotadas para ${eventId}.`);
                     } else {
                         // agenda nova tentativa com contador incrementado

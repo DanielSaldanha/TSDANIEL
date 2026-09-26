@@ -16,14 +16,14 @@ export async function getChannel(): Promise<amqp.Channel> {
             arguments: {
                 'x-message-ttl': 5000,                    // delay entre tentativas
                 'x-dead-letter-exchange': 'Exchange_AB',  // ao expirar, volta pra exchange
-                'x-dead-letter-routing-key': 'evento.DLQ',  // ...com routing key que você quiser (o da fila principal ou DLQ e etc)
+                'x-dead-letter-routing-key': 'evento.A',  // ...com routing key que você quiser (o da fila principal ou DLQ e etc)
             },
         });
     await channel.assertQueue('webhook_events_A',
         {
             durable: true,
             arguments: {
-                'x-message-ttl': 5000,                    // delay entre tentativas
+                //'x-message-ttl': 5000,                    // delay entre tentativas
                 'x-dead-letter-exchange': 'Exchange_AB',  // ao expirar, volta pra exchange
                 'x-dead-letter-routing-key': 'evento.DLQ',  // ...com routing key que você quiser (o da fila principal ou DLQ e etc)
             },
